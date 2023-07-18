@@ -17,10 +17,13 @@ import globalError from './src/utils/globalErrorHandel.js';
 import { uploadSingleFile } from './src/middleware/fileUpload.js';
 import cors from "cors"
 import orderRouter from './src/modules/order/order.routes.js';
+import {createOnlineOrder} from "./src/modules/order/controllers/order.controller.js"
 dotenv.config()
 const app = express()
 const port =3000
 app.use(cors())
+
+app.post('/webhook', express.raw({ type: 'application/json' }), createOnlineOrder);
 app.use(express.static("uploadS"))//3shan yshof 2lfiles static
 app.use(express.json())
 app.use(express.urlencoded({extended:true}))//3shan y2ra mn el form data
