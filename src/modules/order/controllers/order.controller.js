@@ -6,6 +6,7 @@ import AppError from "../../../utils/AppError.js";
 import ApiFeatures from "../../../utils/APIFeatuer.js";
 import { couponModel } from "../../../../DB/model/coupon.model.js";
 import Stripe from 'stripe';
+import { userModel } from "../../../../DB/model/user.model.js";
 const stripe = new Stripe("sk_test_51NUkT0Hq5LHQvaj4HvGfOxkigpwdFJKOB38FuLngsLBKSJuPrLsdZX9tYGlPTht06rSaDWvNd6MNGMLsRTdwFDJ800YpM6kPIu");
 
 
@@ -117,12 +118,11 @@ const createOnlineOrder = catchAsyncError( (request, response) => {
       response.status(400).send(`Webhook Error: ${err.message}`);
       return;
     }
-  
+   
     // Handle the event
   
   if (event.type == 'checkout.session.completed') {
-    const checkoutSessionCompleted = event.data.object;
-
+    card(event.data.object)
     console.log("create order here . . . . ");
   } else {
     console.log(`Unhandled event type ${event.type}`);
@@ -135,3 +135,34 @@ const createOnlineOrder = catchAsyncError( (request, response) => {
 
 
 export { createOrder,getOrder ,getAllOrder,onlinePayment,createOnlineOrder};
+
+
+async function card(ele) {
+  let cart = await cartModel.findById(ele.client_reference_id);
+  !cart && next(new AppError("cart not found", 500));
+let user = await userModel.findOne({email:ele.customer_email})
+  let order = new orderModel({
+    user: req.id,
+    cartItems: cart.cartItems,
+    totalOrderPrice:ele.amount_total/100,
+    shippingAddress: ele.metadata.shippingAddress,
+    paymentMethod: "credit",
+    isPaid: true,
+    paidAt:Date.now()
+  });
+
+  if (order) {
+    let options = cart.cartItems.map((ele) => ({
+      updateOne: {
+        filter: { _id: ele.product },
+        update: { $inc: { quantity: -ele.quantity, sold: ele.quantity } },
+      },
+    }));
+    await productModel.bulkWrite(options);
+    await order.save();
+  }
+
+  await cartModel.findByIdAndDelete(user._id);
+  !order && next(new AppError("cart not found", 500));
+  order && res.status(201).json({ msg: "done", order });
+}
